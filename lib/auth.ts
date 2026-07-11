@@ -10,9 +10,28 @@ export const authOptions: AuthOptions = {
       credentials: {
         email: { label: "Email", type: "email", placeholder: "admin@example.com" },
         password: { label: "Password", type: "password" },
+        token: { label: "Token", type: "text" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
+        if (!credentials?.email || !credentials?.password || !credentials?.token) {
+          return null;
+        }
+
+        // Verify Turnstile Token
+        const verifyRes = await fetch(
+          "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({
+              secret: process.env.TURNSTILE_SECRET_KEY || "1x00000000000000000000000000000000AB",
+              response: credentials.token,
+            }),
+          }
+        );
+
+        const verifyData = await verifyRes.json();
+        if (!verifyData.success) {
           return null;
         }
 

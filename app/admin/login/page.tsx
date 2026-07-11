@@ -1,19 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 
 export default function AdminLogin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
+  useEffect(() => {
+    // Setup Turnstile callbacks on window
+    (window as any).onTurnstileSuccess = (t: string) => {
+      setToken(t);
+    };
+    (window as any).onTurnstileExpired = () => {
+      setToken(null);
+    };
+
+    return () => {
+      delete (window as any).onTurnstileSuccess;
+      delete (window as any).onTurnstileExpired;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!token) {
+      setError("Lütfen güvenlik doğrulamasını tamamlayın.");
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -22,16 +44,24 @@ export default function AdminLogin() {
         redirect: false,
         email,
         password,
+        token,
       });
 
       if (res?.error) {
-        setError("Geçersiz e-posta veya şifre.");
+        setError("Geçersiz e-posta, şifre veya doğrulama.");
+        setToken(null);
+        if ((window as any).turnstile) {
+          (window as any).turnstile.reset();
+        }
       } else {
         router.push("/admin/dashboard");
         router.refresh();
       }
     } catch {
       setError("Bir hata oluştu.");
+      if ((window as any).turnstile) {
+        (window as any).turnstile.reset();
+      }
     } finally {
       setLoading(false);
     }
@@ -39,6 +69,9 @@ export default function AdminLogin() {
 
   return (
     <div className="bg-[#ECECEC] min-h-screen flex items-center justify-center px-6">
+      {/* Cloudflare Turnstile script loading */}
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+
       <div className="bg-white p-8 md:p-10 rounded-2xl border border-neutral-200/60 shadow-sm max-w-md w-full">
         <div className="text-center mb-8">
           <Link href="/" className="font-serif text-2xl font-bold tracking-tight text-[#171717]">
@@ -76,6 +109,16 @@ export default function AdminLogin() {
               className="w-full bg-neutral-50 border border-neutral-200 px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-800 text-sm transition-all"
               required
             />
+          </div>
+
+          {/* Turnstile Widget */}
+          <div className="flex justify-center">
+            <div
+              className="cf-turnstile"
+              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+              data-callback="onTurnstileSuccess"
+              data-expired-callback="onTurnstileExpired"
+            ></div>
           </div>
 
           {error && (
