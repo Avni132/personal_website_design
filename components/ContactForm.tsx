@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Script from "next/script";
 
 export default function ContactForm() {
   const [formData, setFormData] = useState({
@@ -9,8 +10,24 @@ export default function ContactForm() {
     email: "",
     message: "",
   });
+  const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    // Setup Turnstile callbacks on window
+    (window as any).onTurnstileSuccess = (t: string) => {
+      setToken(t);
+    };
+    (window as any).onTurnstileExpired = () => {
+      setToken(null);
+    };
+
+    return () => {
+      delete (window as any).onTurnstileSuccess;
+      delete (window as any).onTurnstileExpired;
+    };
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({
@@ -27,21 +44,36 @@ export default function ContactForm() {
       return;
     }
 
+    if (!token) {
+      setStatus("error");
+      setErrorMsg("Lütfen güvenlik doğrulamasını tamamlayın.");
+      return;
+    }
+
     setStatus("loading");
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, token }),
       });
 
       if (res.ok) {
         setStatus("success");
         setFormData({ name: "", surname: "", email: "", message: "" });
+        setToken(null);
+        // Reset turnstile widget
+        if ((window as any).turnstile) {
+          (window as any).turnstile.reset();
+        }
       } else {
         const data = await res.json();
         setStatus("error");
         setErrorMsg(data.error || "Bir hata oluştu.");
+        // Reset turnstile on error so user can try again
+        if ((window as any).turnstile) {
+          (window as any).turnstile.reset();
+        }
       }
     } catch {
       setStatus("error");
@@ -51,6 +83,9 @@ export default function ContactForm() {
 
   return (
     <section className="py-20 px-6 max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-16">
+      {/* Cloudflare Turnstile script loading */}
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer />
+
       <div>
         <h2 className="font-serif text-4xl md:text-5xl font-bold leading-tight tracking-tight text-[#171717]">
           Let's Start a<br />Conversation
@@ -119,9 +154,19 @@ export default function ContactForm() {
               rows={4}
               value={formData.message}
               onChange={handleChange}
-              className="w-full bg-neutral-50 border border-neutral-200 px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-800 text-sm transition-all resize-none"
+              className="w-full bg-neutral-50 border border-neutral-200 px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-800 text-sm transition-all resize-none font-light"
               required
             ></textarea>
+          </div>
+
+          {/* Turnstile Widget */}
+          <div className="flex justify-start">
+            <div
+              className="cf-turnstile"
+              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
+              data-callback="onTurnstileSuccess"
+              data-expired-callback="onTurnstileExpired"
+            ></div>
           </div>
 
           {status === "success" && (
