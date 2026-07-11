@@ -23,7 +23,29 @@ export default function AdminLogin() {
       setToken(null);
     };
 
+    // Programmatic Turnstile Rendering
+    let interval: any;
+    const renderWidget = () => {
+      if ((window as any).turnstile) {
+        clearInterval(interval);
+        try {
+          const container = document.getElementById("login-turnstile-container");
+          if (container && container.innerHTML === "") {
+            (window as any).turnstile.render("#login-turnstile-container", {
+              sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
+              callback: "onTurnstileSuccess",
+              "expired-callback": "onTurnstileExpired",
+            });
+          }
+        } catch (e) {
+          console.error("Turnstile render error:", e);
+        }
+      }
+    };
+    interval = setInterval(renderWidget, 100);
+
     return () => {
+      clearInterval(interval);
       delete (window as any).onTurnstileSuccess;
       delete (window as any).onTurnstileExpired;
     };
@@ -51,7 +73,7 @@ export default function AdminLogin() {
         setError("Geçersiz e-posta, şifre veya doğrulama.");
         setToken(null);
         if ((window as any).turnstile) {
-          (window as any).turnstile.reset();
+          (window as any).turnstile.reset("#login-turnstile-container");
         }
       } else {
         router.push("/admin/dashboard");
@@ -60,7 +82,7 @@ export default function AdminLogin() {
     } catch {
       setError("Bir hata oluştu.");
       if ((window as any).turnstile) {
-        (window as any).turnstile.reset();
+        (window as any).turnstile.reset("#login-turnstile-container");
       }
     } finally {
       setLoading(false);
@@ -111,14 +133,9 @@ export default function AdminLogin() {
             />
           </div>
 
-          {/* Turnstile Widget */}
+          {/* Turnstile Widget Container */}
           <div className="flex justify-center">
-            <div
-              className="cf-turnstile"
-              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
-              data-callback="onTurnstileSuccess"
-              data-expired-callback="onTurnstileExpired"
-            ></div>
+            <div id="login-turnstile-container"></div>
           </div>
 
           {error && (

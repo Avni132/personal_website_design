@@ -23,7 +23,30 @@ export default function ContactForm() {
       setToken(null);
     };
 
+    // Programmatic Turnstile Rendering
+    let interval: any;
+    const renderWidget = () => {
+      if ((window as any).turnstile) {
+        clearInterval(interval);
+        try {
+          // Check if element exists before rendering
+          const container = document.getElementById("contact-turnstile-container");
+          if (container && container.innerHTML === "") {
+            (window as any).turnstile.render("#contact-turnstile-container", {
+              sitekey: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA",
+              callback: "onTurnstileSuccess",
+              "expired-callback": "onTurnstileExpired",
+            });
+          }
+        } catch (e) {
+          console.error("Turnstile render error:", e);
+        }
+      }
+    };
+    interval = setInterval(renderWidget, 100);
+
     return () => {
+      clearInterval(interval);
       delete (window as any).onTurnstileSuccess;
       delete (window as any).onTurnstileExpired;
     };
@@ -64,7 +87,7 @@ export default function ContactForm() {
         setToken(null);
         // Reset turnstile widget
         if ((window as any).turnstile) {
-          (window as any).turnstile.reset();
+          (window as any).turnstile.reset("#contact-turnstile-container");
         }
       } else {
         const data = await res.json();
@@ -72,7 +95,7 @@ export default function ContactForm() {
         setErrorMsg(data.error || "Bir hata oluştu.");
         // Reset turnstile on error so user can try again
         if ((window as any).turnstile) {
-          (window as any).turnstile.reset();
+          (window as any).turnstile.reset("#contact-turnstile-container");
         }
       }
     } catch {
@@ -154,19 +177,14 @@ export default function ContactForm() {
               rows={4}
               value={formData.message}
               onChange={handleChange}
-              className="w-full bg-neutral-50 border border-neutral-200 px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-800 text-sm transition-all resize-none font-light"
+              className="w-full bg-neutral-50 border border-neutral-200 px-4 py-3 rounded-xl focus:outline-none focus:ring-1 focus:ring-neutral-800 text-sm transition-all resize-none"
               required
             ></textarea>
           </div>
 
           {/* Turnstile Widget */}
           <div className="flex justify-start">
-            <div
-              className="cf-turnstile"
-              data-sitekey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "1x00000000000000000000AA"}
-              data-callback="onTurnstileSuccess"
-              data-expired-callback="onTurnstileExpired"
-            ></div>
+            <div id="contact-turnstile-container"></div>
           </div>
 
           {status === "success" && (
