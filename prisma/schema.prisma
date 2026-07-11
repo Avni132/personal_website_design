@@ -1,0 +1,38 @@
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AdminUser {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  createdAt DateTime @default(now())
+}
+
+model HeroContent {
+  id          Int      @id @default(1)
+  title       String
+  description String
+  updatedAt   DateTime @updatedAt
+}
+
+model Interest {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  order       Int      @default(0)
+}
+
+model ContactMessage {
+  id        Int      @id @default(autoincrement())
+  name      String
+  surname   String
+  email     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
